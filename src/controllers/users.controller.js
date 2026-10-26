@@ -1,5 +1,11 @@
 
-import prisma from "../db.js";
+import {
+  createUser,
+  listUsers,
+  getUserById,
+  updateUser,
+  deleteUser,
+} from "../services/users.service.js";
 
 // Create a user
 export async function create(req, res) {
@@ -12,10 +18,7 @@ export async function create(req, res) {
   }
 
   try {
-    const user = await prisma.user.create({
-      data: { username, email, fullname, bio },
-    });
-
+    const user = await createUser({ username, email, fullname, bio });
     return res.status(201).json(user);
   } catch (error) {
     if (error.code === "P2002") {
@@ -32,7 +35,7 @@ export async function create(req, res) {
 // Get all users
 export async function list(req, res) {
   try {
-    const users = await prisma.user.findMany();
+    const users = await listUsers();
     return res.status(200).json(users);
   } catch (error) {
     console.error(error);
@@ -49,7 +52,7 @@ export async function getOne(req, res) {
   }
 
   try {
-    const user = await prisma.user.findUnique({ where: { id } });
+    const user = await getUserById(id);
 
     if (!user) {
       return res.status(404).json({ error: "User not found" });
@@ -77,7 +80,7 @@ export async function update(req, res) {
   if (isPrivate !== undefined) data.isPrivate = isPrivate;
 
   try {
-    const user = await prisma.user.update({ where: { id }, data });
+    const user = await updateUser(id, data);
     return res.status(200).json(user);
   } catch (error) {
     if (error.code === "P2025") {
@@ -98,7 +101,7 @@ export async function remove(req, res) {
   }
 
   try {
-    await prisma.user.delete({ where: { id } });
+    await deleteUser(id);
     return res.status(204).send();
   } catch (error) {
     if (error.code === "P2025") {

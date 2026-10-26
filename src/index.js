@@ -106,6 +106,30 @@ app.patch("/users/:id", async (req, res) => {
   }
 });
 
+// Delete a user
+app.delete("/users/:id", async (req, res) => {
+  const id = Number(req.params.id);
+
+  if (!Number.isInteger(id) || id <= 0) {
+    return res.status(404).json({ error: "User not found" });
+  }
+
+  try {
+    await prisma.user.delete({
+      where: { id },
+    });
+
+    return res.status(204).send();
+  } catch (error) {
+    if (error.code === "P2025") {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    console.error(error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 app.listen(3000, () => {
   console.log("Server started on port 3000");
 });

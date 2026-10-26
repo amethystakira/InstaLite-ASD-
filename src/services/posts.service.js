@@ -127,3 +127,146 @@ export async function deletePost(id) {
     where: { id },
   });
 }
+
+export async function getPostLikes(postId) {
+  const post = await prisma.post.findUnique({
+    where: { id: postId },
+    select: {
+      id: true,
+      likes: {
+        orderBy: {
+          user: {
+            username: "asc",
+          },
+        },
+        select: {
+          user: {
+            select: {
+              id: true,
+              username: true,
+              fullname: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!post) {
+    return null;
+  }
+
+  return post.likes.map((like) => like.user);
+}
+
+
+export async function likePost(postId, userId) {
+  const [post, user] = await Promise.all([
+    prisma.post.findUnique({
+      where: { id: postId },
+      select: { id: true },
+    }),
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true },
+    }),
+  ]);
+
+  if (!post) {
+    return { error: "Post not found", status: 404 };
+  }
+
+  if (!user) {
+    return { error: "User not found", status: 404 };
+  }
+
+  const existingLike = await prisma.like.findUnique({
+    where: {
+      userId_postId: { userId, postId },
+    },
+  });
+
+  if (existingLike) {
+    return { error: "Already liked", status: 409 };
+  }
+
+  const like = await prisma.like.create({
+    data: { userId, postId },
+  });
+
+  return { data: like };
+}
+
+
+export async function likePostController(req, res) {
+  const postId = Number(req.params.id);
+  const userId = Number(req.body.userId);
+
+  if (req.body.userId === undefined || req.body.userId === null || req.body.userId === "") {
+    return res.status(400).json({ error: "userId is required" });
+  }
+
+  if (!Number.isInteger(postId) || postId <= 0) {
+    return res.status(404).json({ error: "Post not found" });
+  }
+
+  if (!Number.isInteger(userId) || userId <= 0) {
+    return res.status(404).json({ error: "User not found" });
+  }
+
+  try {
+    const result = await likePost(postId, userId);
+
+    if (result.error) {
+      return res.status(result.status).json({
+        error: result.error,
+      });
+    }
+
+    return res.status(201).json(result.data);
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({
+      error: "Internal server error",
+    });
+  }
+}
+
+
+export async function unlikePost(postId, userId) {
+  const post = await prisma.post.findUnique({
+    where: { id: postId },
+    select: { id: true },
+  });
+
+  if (!post) {
+    return { error: "Post not found", status: 404 };
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true },
+  });
+
+  if (!user) {
+    return { error: "User not found", status: 404 };
+  }
+
+  const existingLike = await prisma.like.findUnique({
+    where: {
+      userId_postId: { userId, postId },
+    },
+  });
+
+  if (!existingLike) {
+    return { error: "Like not found", status: 404 };
+  }
+
+  await prisma.like.delete({
+    where: {
+      userId_postId: { userId, postId },
+    },
+  });
+
+  return { message: "Like removed successfully" };
+}

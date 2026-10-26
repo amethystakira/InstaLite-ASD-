@@ -99,3 +99,70 @@ export async function deleteUser(id) {
     where: { id },
   });
 }
+
+export async function getUserPosts(userId, page, limit) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true },
+  });
+
+  if (!user) {
+    return null;
+  }
+
+  const skip = (page - 1) * limit;
+
+  const [posts, total] = await Promise.all([
+    prisma.post.findMany({
+      where: { authorId: userId },
+      orderBy: { createdAt: "desc" },
+      skip,
+      take: limit,
+      include: {
+        _count: {
+          select: { likes: true },
+        },
+      },
+    }),
+    prisma.post.count({
+      where: { authorId: userId },
+    }),
+  ]);
+
+  return {
+    data: posts,
+    meta: {
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit),
+    },
+  };
+}
+
+
+export async function getUserLikedPosts(userId) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true },
+  });
+
+  if (!user) {
+    return null;
+  }
+
+  return prisma.post.findMany({
+    where: {
+      likes: {
+        some: { userId },
+      },
+    },
+    orderBy: { createdAt: "desc" },
+    include: {
+      _count: {
+        select: { likes: true },
+      },
+    },
+  });
+}
+

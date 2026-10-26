@@ -1,29 +1,55 @@
+import {
+  createUser,
+  listUsers,
+  getUserById,
+  updateUser,
+  deleteUser,
+  getUserPosts,
+  getUserLikedPosts,
+} from "../services/users.service.js";
 
+import { validatePagination } from "../utils/pagination.js";
+
+// Create a user
+export async function create(req, res) {
+  const { username, email, fullname, bio } = req.body ?? {};
+
+  if (!username || !email || !fullname) {
+    return res.status(400).json({
+      error: "username, email and fullname are required",
+    });
+  }
+
+  try {
+    const user = await createUser({ username, email, fullname, bio });
+    return res.status(201).json(user);
+  } catch (error) {
+    if (error.code === "P2002") {
+      return res.status(409).json({
+        error: "username or email already taken",
+      });
+    }
+
+    console.error(error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+}
+
+// Get all users
 export async function list(req, res) {
-  const pageParam = req.query.page;
-  const limitParam = req.query.limit;
+  const pagination = validatePagination(req.query);
 
-  const page = pageParam === undefined ? 1 : Number(pageParam);
-  let limit = limitParam === undefined ? 10 : Number(limitParam);
+  if (pagination.error) {
+    return res.status(400).json({ error: pagination.error });
+  }
+
+  const { page, limit } = pagination;
 
   const sortBy = req.query.sortBy ?? "createdAt";
   const order = req.query.order ?? "desc";
   const isPrivateParam = req.query.isPrivate;
   const hasPostsParam = req.query.hasPosts;
   const search = req.query.search;
-
-  if (
-    !Number.isInteger(page) ||
-    page < 1 ||
-    !Number.isInteger(limit) ||
-    limit < 1
-  ) {
-    return res.status(400).json({
-      error: "page and limit must be positive integers",
-    });
-  }
-
-  limit = Math.min(limit, 50);
 
   const allowedSortFields = ["createdAt", "username", "fullname"];
 
@@ -73,5 +99,130 @@ export async function list(req, res) {
   } catch (error) {
     console.error(error);
     return res.status(500).json({ error: "Internal server error" });
+  }
+}
+
+// Get one user
+export async function getOne(req, res) {
+  const id = Number(req.params.id);
+
+  if (!Number.isInteger(id) || id <= 0) {
+    return res.status(404).json({ error: "User not found" });
+  }
+
+  try {
+    const user = await getUserById(id);
+
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    return res.status(200).json(user);
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+}
+
+// Update a user
+export async function update(req, res) {
+  const id = Number(req.params.id);
+  const { fullname, bio, isPrivate } = req.body ?? {};
+
+  if (!Number.isInteger(id) || id <= 0) {
+    return res.status(404).json({ error: "User not found" });
+  }
+
+  const data = {};
+  if (fullname !== undefined) data.fullname = fullname;
+  if (bio !== undefined) data.bio = bio;
+  if (isPrivate !== undefined) data.isPrivate = isPrivate;
+
+  try {
+    const user = await updateUser(id, data);
+    return res.status(200).json(user);
+  } catch (error) {
+    if (error.code === "P2025") {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    console.error(error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+}
+
+// Delete a user
+export async function remove(req, res) {
+  const id = Number(req.params.id);
+
+  if (!Number.isInteger(id) || id <= 0) {
+    return res.status(404).json({ error: "User not found" });
+  }
+
+  try {
+    await deleteUser(id);
+    return res.status(204).send();
+  } catch (error) {
+    if (error.code === "P2025") {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    console.error(error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+}
+
+// Get posts created by a user
+export async function getUserPostsController(req, res) {
+  const userId = Number(req.params.id);
+  const pagination = validatePagination(req.query);
+
+  if (pagination.error) {
+    return res.status(400).json({ error: pagination.error });
+  }
+
+  if (!Number.isInteger(userId) || userId <= 0) {
+    return res.status(404).json({ error: "User not found" });
+  }
+
+  try {
+    const result = await getUserPosts(
+      userId,
+      pagination.page,
+      pagination.limit
+    );
+
+    if (!result) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+}
+
+
+export async function getUserLikedPostsController(req, res) {
+  const userId = Number(req.params.id);
+
+  if (!Number.isInteger(userId) || userId <= 0) {
+    return res.status(404).json({ error: "User not found" });
+  }
+
+  try {
+    const posts = await getUserLikedPosts(userId);
+
+    if (posts === null) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    return res.status(200).json(posts);
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({
+      error: "Internal server error",
+    });
   }
 }

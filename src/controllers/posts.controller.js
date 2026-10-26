@@ -2,9 +2,12 @@
 import {
   createPost,
   listPosts,
+  likePost,
   getPostById,
   updatePost,
+  unlikePost,
   deletePost,
+  getPostLikes,
 } from "../services/posts.service.js";
 
 // Create a post
@@ -172,5 +175,96 @@ export async function remove(req, res) {
 
     console.error(error);
     return res.status(500).json({ error: "Internal server error" });
+  }
+}
+
+export async function getPostLikesController(req, res) {
+  const postId = Number(req.params.id);
+
+  if (!Number.isInteger(postId) || postId <= 0) {
+    return res.status(404).json({ error: "Post not found" });
+  }
+
+  try {
+    const likes = await getPostLikes(postId);
+
+    if (likes === null) {
+      return res.status(404).json({ error: "Post not found" });
+    }
+
+    return res.status(200).json(likes);
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({
+      error: "Internal server error",
+    });
+  }
+}
+
+
+export async function likePostController(req, res) {
+  const postId = Number(req.params.id);
+  const rawUserId = req.body?.userId;
+
+  if (rawUserId === undefined || rawUserId === null || rawUserId === "") {
+    return res.status(400).json({ error: "userId is required" });
+  }
+
+  const userId = Number(rawUserId);
+
+  if (!Number.isInteger(postId) || postId <= 0) {
+    return res.status(404).json({ error: "Post not found" });
+  }
+
+  if (!Number.isInteger(userId) || userId <= 0) {
+    return res.status(404).json({ error: "User not found" });
+  }
+
+  try {
+    const result = await likePost(postId, userId);
+
+    if (result.error) {
+      return res.status(result.status).json({
+        error: result.error,
+      });
+    }
+
+    return res.status(201).json(result.data);
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({
+      error: "Internal server error",
+    });
+  }
+}
+
+
+export async function unlikePostController(req, res) {
+  const postId = Number(req.params.id);
+  const userId = Number(req.params.userId);
+
+  if (!Number.isInteger(postId) || postId <= 0) {
+    return res.status(404).json({ error: "Post not found" });
+  }
+
+  if (!Number.isInteger(userId) || userId <= 0) {
+    return res.status(404).json({ error: "User not found" });
+  }
+
+  try {
+    const result = await unlikePost(postId, userId);
+
+    if (result.error) {
+      return res.status(result.status).json({
+        error: result.error,
+      });
+    }
+
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({
+      error: "Internal server error",
+    });
   }
 }

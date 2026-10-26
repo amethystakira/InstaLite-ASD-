@@ -10,4 +10,8 @@ dist/
 .windsurf/
 skills-lock.json
 
+# macOS
+.DS_Store
+**/.DS_Store
+
 /src/generated/prisma

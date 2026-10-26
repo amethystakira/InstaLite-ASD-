@@ -6,7 +6,7 @@ export async function createUser(data) {
   return prisma.user.create({ data });
 }
 
-// List all users
+// List users with filtering, sorting, and pagination
 export async function listUsers(
   page,
   limit,
@@ -17,10 +17,19 @@ export async function listUsers(
   const skip = (page - 1) * limit;
   const where = {};
 
+  // Filter by privacy
   if (filters.isPrivate !== undefined) {
     where.isPrivate = filters.isPrivate;
   }
 
+  // Filter by whether the user has posts
+  if (filters.hasPosts !== undefined) {
+    where.posts = filters.hasPosts
+      ? { some: {} }
+      : { none: {} };
+  }
+
+  // Search username or fullname
   if (filters.search) {
     where.OR = [
       {
@@ -61,10 +70,18 @@ export async function listUsers(
   };
 }
 
-// Find a user by ID
+// Find a user by ID, including post and like counts
 export async function getUserById(id) {
   return prisma.user.findUnique({
     where: { id },
+    include: {
+      _count: {
+        select: {
+          posts: true,
+          likes: true,
+        },
+      },
+    },
   });
 }
 

@@ -3,23 +3,12 @@ import prisma from "../db.js";
 
 // Create a post
 export async function createPost(data) {
-  const user = await prisma.user.findFirst({
-    orderBy: { id: "asc" },
-  });
-
-  if (!user) {
-    throw new Error("A user must exist before creating a post");
-  }
-
   return prisma.post.create({
-    data: {
-      ...data,
-      userId: user.id,
-    },
+    data,
   });
 }
 
-// List all posts
+// List posts with filtering, sorting, and pagination
 export async function listPosts(
   page,
   limit,
@@ -30,7 +19,7 @@ export async function listPosts(
   const skip = (page - 1) * limit;
   const where = {};
 
-  // Filter by location (case-insensitive)
+  // Filter by location
   if (filters.location) {
     where.location = {
       equals: filters.location,
@@ -38,7 +27,7 @@ export async function listPosts(
     };
   }
 
-  // Search captions (case-insensitive)
+  // Search captions
   if (filters.search) {
     where.caption = {
       contains: filters.search,
@@ -59,16 +48,34 @@ export async function listPosts(
     }
   }
 
+  // Sort by likes, using newest-first for ties
+  const orderBy =
+    sortBy === "likes"
+      ? [
+          { likes: { _count: order } },
+          { createdAt: "desc" },
+        ]
+      : { [sortBy]: order };
+
   const [posts, total] = await prisma.$transaction([
     prisma.post.findMany({
       where,
       skip,
       take: limit,
-      orderBy: {
-        [sortBy]: order,
-      },
+      orderBy,
       include: {
-        user: true,
+        author: {
+          select: {
+            id: true,
+            username: true,
+            fullname: true,
+          },
+        },
+        _count: {
+          select: {
+            likes: true,
+          },
+        },
       },
     }),
     prisma.post.count({ where }),
@@ -89,6 +96,20 @@ export async function listPosts(
 export async function getPostById(id) {
   return prisma.post.findUnique({
     where: { id },
+    include: {
+      author: {
+        select: {
+          id: true,
+          username: true,
+          fullname: true,
+        },
+      },
+      _count: {
+        select: {
+          likes: true,
+        },
+      },
+    },
   });
 }
 
@@ -106,4 +127,3 @@ export async function deletePost(id) {
     where: { id },
   });
 }
- 

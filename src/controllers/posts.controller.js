@@ -9,17 +9,22 @@ import {
 
 // Create a post
 export async function create(req, res) {
-  const { imageUrl, caption, location } = req.body ?? {};
-
-  if (!imageUrl) {
-    return res.status(400).json({
-      error: "imageUrl is required",
-    });
-  }
-
   try {
-    // userId handling will be resolved before testing creation.
-    const post = await createPost({ imageUrl, caption, location });
+    const { caption, imageUrl, location, authorId } = req.body;
+
+    if (!imageUrl || !authorId) {
+      return res.status(400).json({
+        error: "imageUrl and authorId are required",
+      });
+    }
+
+    const post = await createPost({
+      caption,
+      imageUrl,
+      location,
+      authorId: Number(authorId),
+    });
+
     return res.status(201).json(post);
   } catch (error) {
     console.error(error);
@@ -27,7 +32,7 @@ export async function create(req, res) {
   }
 }
 
-// Get posts with pagination, sorting, and filtering
+// List posts with filtering, sorting, and pagination
 export async function list(req, res) {
   const pageParam = req.query.page;
   const limitParam = req.query.limit;
@@ -55,11 +60,11 @@ export async function list(req, res) {
   limit = Math.min(limit, 50);
 
   // Validate sorting
-  const allowedSortFields = ["createdAt", "updatedAt"];
+  const allowedSortFields = ["createdAt", "updatedAt", "likes"];
 
   if (!allowedSortFields.includes(sortBy)) {
     return res.status(400).json({
-      error: "sortBy must be one of: createdAt, updatedAt",
+      error: "sortBy must be one of: createdAt, updatedAt, likes",
     });
   }
 
@@ -101,15 +106,15 @@ export async function list(req, res) {
   }
 }
 
-// Get one post
-export async function getOne(req, res) {
-  const id = Number(req.params.id);
-
-  if (!Number.isInteger(id) || id <= 0) {
-    return res.status(404).json({ error: "Post not found" });
-  }
-
+// Get a single post
+export async function getById(req, res) {
   try {
+    const id = Number(req.params.id);
+
+    if (!Number.isInteger(id) || id < 1) {
+      return res.status(400).json({ error: "Invalid post ID" });
+    }
+
     const post = await getPostById(id);
 
     if (!post) {
@@ -125,19 +130,18 @@ export async function getOne(req, res) {
 
 // Update a post
 export async function update(req, res) {
-  const id = Number(req.params.id);
-  const { caption, location } = req.body ?? {};
-
-  if (!Number.isInteger(id) || id <= 0) {
-    return res.status(404).json({ error: "Post not found" });
-  }
-
-  const data = {};
-  if (caption !== undefined) data.caption = caption;
-  if (location !== undefined) data.location = location;
-
   try {
+    const id = Number(req.params.id);
+
+    if (!Number.isInteger(id) || id < 1) {
+      return res.status(400).json({ error: "Invalid post ID" });
+    }
+
+    // Never allow authorId to be changed through PATCH
+    const { authorId, ...data } = req.body;
+
     const post = await updatePost(id, data);
+
     return res.status(200).json(post);
   } catch (error) {
     if (error.code === "P2025") {
@@ -151,15 +155,16 @@ export async function update(req, res) {
 
 // Delete a post
 export async function remove(req, res) {
-  const id = Number(req.params.id);
-
-  if (!Number.isInteger(id) || id <= 0) {
-    return res.status(404).json({ error: "Post not found" });
-  }
-
   try {
-    await deletePost(id);
-    return res.status(204).send();
+    const id = Number(req.params.id);
+
+    if (!Number.isInteger(id) || id < 1) {
+      return res.status(400).json({ error: "Invalid post ID" });
+    }
+
+    const post = await deletePost(id);
+
+    return res.status(200).json(post);
   } catch (error) {
     if (error.code === "P2025") {
       return res.status(404).json({ error: "Post not found" });
